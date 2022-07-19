@@ -12,8 +12,8 @@ use syn::{
     Type, TypeBareFn, TypePtr,
 };
 
-const IDENT_CHARS: &'static str = "_qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM";
-const PRIMITIVE_IDENTS: &'static [&'static str] = &[
+const IDENT_CHARS: &str = "_qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM";
+const PRIMITIVE_IDENTS: &[&str] = &[
     "u8", "u16", "u32", "u64", "u128", "i8", "i16", "i32", "i64", "i128",
 ];
 
@@ -27,7 +27,7 @@ fn gen_ident(base: &str) -> Ident {
 }
 
 fn is_ident(ty: &Type, ident: &str) -> bool {
-    matches!(ty, Type::Path(path) if path.path.segments.last().unwrap().ident.to_string() == ident)
+    matches!(ty, Type::Path(path) if path.path.segments.last().unwrap().ident == ident)
 }
 
 struct UnsafeFnConvert {
@@ -168,8 +168,19 @@ impl UnsafeFnConvert {
                             }
                         };
                     }.into()).unwrap());
-                    
-                    syn::parse(quote!(impl Fn(Option<&mut std::ffi::c_void>, &str, &stat, off_t) -> std::os::raw::c_int).into()).unwrap()
+
+                    syn::parse(
+                        quote!(
+                            impl Fn(
+                                Option<&mut std::ffi::c_void>,
+                                &str,
+                                &stat,
+                                off_t,
+                            ) -> std::os::raw::c_int
+                        )
+                        .into(),
+                    )
+                    .unwrap()
                 }
 
                 Type::Path(path) => {
@@ -261,7 +272,7 @@ pub fn fuse_operations(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         if variadic.is_some()
             || !matches!(output, ReturnType::Type(_, ty)
-                if is_ident(&ty, "c_int")
+                if is_ident(ty, "c_int")
             )
         {
             continue;
@@ -294,12 +305,15 @@ pub fn fuse_operations(attr: TokenStream, item: TokenStream) -> TokenStream {
                 std::io::Result::Err(std::io::Error::from_raw_os_error(38))
             }
         }]);
-    
+
         raw_trait_fn_sigs.extend([quote! {
             #unsafety #abi fn #name (#inputs) #output;
         }]);
-    
-        for (stream, convert_ptr) in [(&mut raw_threaded_fns, quote!(as_ref)), (&mut raw_unthreaded_fns, quote!(as_mut))] {
+
+        for (stream, convert_ptr) in [
+            (&mut raw_threaded_fns, quote!(as_ref)),
+            (&mut raw_unthreaded_fns, quote!(as_mut)),
+        ] {
             stream.extend([quote! {
                 #unsafety #abi fn #name (#inputs) #output {
                     #conversion
@@ -328,7 +342,7 @@ pub fn fuse_operations(attr: TokenStream, item: TokenStream) -> TokenStream {
                             ops.#name = None;
                             UserData::new(ops, #private_data_ident.this)
                         };
-                
+
                         let #dummy_fs_ident = crate::fuse_fs_new(
                             &#dummy_private_data_ident.ops as *const _,
                             std::mem::size_of::<crate::fuse_operations>() as crate::size_t,
@@ -346,10 +360,8 @@ pub fn fuse_operations(attr: TokenStream, item: TokenStream) -> TokenStream {
             }]);
         }
 
-        op_assignments.push(
-            syn::parse(quote!(operations.#name = Some(Self::#name);).into())
-                .unwrap(),
-        );
+        op_assignments
+            .push(syn::parse(quote!(operations.#name = Some(Self::#name);).into()).unwrap());
     }
 
     let op_assignments: Punctuated<Stmt, Semi> = op_assignments.into_iter().collect();
@@ -415,7 +427,7 @@ pub fn fuse_operations(attr: TokenStream, item: TokenStream) -> TokenStream {
                 );
 
                 let mut args_owned: std::vec::Vec<_> = fuse_args.into_iter().map(|s| std::ffi::CString::new(*s).unwrap()).collect();
-            
+
                 if UNTHREADED {
                     args_owned.push(std::ffi::CString::new("-s").unwrap());
                 }

@@ -1,10 +1,11 @@
 use clap::StructOpt;
+use filesystem_error::prelude::*;
 use fuse_sys::prelude::*;
 use nix::sys::stat as nixstat;
 use std::{
     env,
     fs::*,
-    io::{ErrorKind, Result},
+    io::ErrorKind,
     os::{raw::c_void, unix::fs::*},
 };
 
@@ -24,7 +25,8 @@ impl Passthrough {
 
 impl UnthreadedFileSystem for Passthrough {
     fn chmod(&mut self, path: &str, mode: mode_t) -> Result<i32> {
-        set_permissions(self.source(path), Permissions::from_mode(mode.into())).map(|_| 0)
+        set_permissions(self.source(path), Permissions::from_mode(mode.into()))?;
+        Ok(0)
     }
 
     fn create(
@@ -42,8 +44,9 @@ impl UnthreadedFileSystem for Passthrough {
             .create(true)
             .append(true)
             .mode(mode.into())
-            .open(self.source(path))
-            .map(|_| 0)
+            .open(self.source(path))?;
+
+        Ok(0)
     }
 
     fn fsync(
@@ -58,14 +61,14 @@ impl UnthreadedFileSystem for Passthrough {
     fn getattr(&mut self, path: &str, stat: Option<&mut stat>) -> Result<i32> {
         let path: &str = &self.source(path);
         *stat.unwrap() = unsafe { std::mem::transmute(nixstat::stat(path)?) };
-
         Ok(0)
     }
 
     fn mkdir(&mut self, path: &str, mode: mode_t) -> Result<i32> {
         let path = self.source(path);
         create_dir(&path)?;
-        set_permissions(path, Permissions::from_mode(mode.into())).map(|_| 0)
+        set_permissions(path, Permissions::from_mode(mode.into()))?;
+        Ok(0)
     }
 
     fn mknod(&mut self, path: &str, mode: mode_t, dev: dev_t) -> Result<i32> {
@@ -92,7 +95,8 @@ impl UnthreadedFileSystem for Passthrough {
         }
 
         let f = options.read(true).open(self.source(path))?;
-        f.read_at(buf, off as u64).map(|n| n as i32)
+        let n = f.read_at(buf, off as u64)?;
+        Ok(n as i32)
     }
 
     fn readdir(
@@ -125,7 +129,7 @@ impl UnthreadedFileSystem for Passthrough {
     }
 
     fn readlink(&mut self, path: &str, buf: &mut [u8]) -> Result<i32> {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             return Ok(0);
         }
 
@@ -142,20 +146,24 @@ impl UnthreadedFileSystem for Passthrough {
     }
 
     fn rename(&mut self, old: &str, new: &str) -> Result<i32> {
-        rename(self.source(old), self.source(new)).map(|_| 0)
+        rename(self.source(old), self.source(new))?;
+        Ok(0)
     }
 
     fn rmdir(&mut self, path: &str) -> Result<i32> {
-        remove_dir(self.source(path)).map(|_| 0)
+        remove_dir(self.source(path))?;
+        Ok(0)
     }
 
     fn truncate(&mut self, path: &str, size: off_t) -> Result<i32> {
         let f = OpenOptions::new().write(true).open(self.source(path))?;
-        f.set_len(size as u64).map(|_| 0)
+        f.set_len(size as u64)?;
+        Ok(0)
     }
 
     fn unlink(&mut self, path: &str) -> Result<i32> {
-        remove_file(self.source(path)).map(|_| 0)
+        remove_file(self.source(path))?;
+        Ok(0)
     }
 
     fn write(
@@ -170,11 +178,12 @@ impl UnthreadedFileSystem for Passthrough {
             options.custom_flags(info.flags);
         }
 
-        options
+        let n = options
             .write(true)
             .open(self.source(path))?
-            .write_at(buf, off as u64)
-            .map(|n| n as i32)
+            .write_at(buf, off as u64)?;
+
+        Ok(n as i32)
     }
 }
 
@@ -214,5 +223,5 @@ fn main() {
     }
 
     println!("Mounting {mount} as mirror of {data}...");
-    Passthrough::new(data.to_owned()).run(&fuse_args).unwrap();
+    Passthrough::new(data).run(&fuse_args).unwrap();
 }

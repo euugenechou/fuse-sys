@@ -1,8 +1,7 @@
-use std::collections::HashSet;
-
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
+use std::collections::HashSet;
 use syn::{
     parse::Parser,
     parse_macro_input,
@@ -296,13 +295,13 @@ pub fn fuse_operations(attr: TokenStream, item: TokenStream) -> TokenStream {
         let fuse_fs_name: TokenStream2 = format!("crate::fuse_fs_{name}").parse().unwrap();
 
         unthreaded_fns.extend([quote! {
-            fn #name (&mut self, #new_inputs) -> std::io::Result<i32> {
-                std::io::Result::Err(std::io::Error::from_raw_os_error(38))
+            fn #name (&mut self, #new_inputs) -> filesystem_error::Result<i32> {
+                Err(filesystem_error::Error::IO(std::io::Error::from_raw_os_error(38)))
             }
         }]);
         threaded_fns.extend([quote! {
-            fn #name (&self, #new_inputs) -> std::io::Result<i32> {
-                std::io::Result::Err(std::io::Error::from_raw_os_error(38))
+            fn #name (&self, #new_inputs) -> filesystem_error::Result<i32> {
+                Err(filesystem_error::Error::IO(std::io::Error::from_raw_os_error(38)))
             }
         }]);
 
@@ -326,12 +325,25 @@ pub fn fuse_operations(attr: TokenStream, item: TokenStream) -> TokenStream {
                     );
 
                     let #out_ident = match #out_ident {
-                        std::io::Result::Ok(o) => o,
-                        std::io::Result::Err(e) => match e.raw_os_error() {
-                            std::option::Option::Some(os) => -os,
-                            std::option::Option::None => {
-                                eprintln!("Unrecognized error in {}: {:?}", stringify!(#name), e);
-                                -131
+                        std::result::Result::Ok(o) => o,
+                        std::result::Result::Err(e) => {
+                            match e {
+                                filesystem_error::Error::IO(err) => {
+                                    match err.raw_os_error() {
+                                        std::option::Option::Some(os) => -os,
+                                        std::option::Option::None => {
+                                            eprintln!("Unrecognized error in {}: {:?}", stringify!(#name), err);
+                                            -131
+                                        }
+                                    }
+                                }
+                                filesystem_error::Error::Errno(err) => {
+                                    -(err as i32)
+                                }
+                                _ => {
+                                    eprintln!("Unrecognized error in {}: {:?}", stringify!(#name), e);
+                                    -131
+                                }
                             }
                         }
                     };

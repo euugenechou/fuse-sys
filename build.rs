@@ -49,7 +49,7 @@ fn main() {
         bindings_raw.insert_str(
             operations_loc,
             &format!(
-                "#[filesystem_macro::fuse_operations[{}]]",
+                "#[filesystem_macro::fuse_operations[{}]]\n",
                 blacklisted.join(", ")
             ),
         );

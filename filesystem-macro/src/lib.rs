@@ -295,13 +295,13 @@ pub fn fuse_operations(attr: TokenStream, item: TokenStream) -> TokenStream {
         let fuse_fs_name: TokenStream2 = format!("crate::fuse_fs_{name}").parse().unwrap();
 
         unthreaded_fns.extend([quote! {
-            fn #name (&mut self, #new_inputs) -> filesystem_error::Result<i32> {
-                Err(filesystem_error::Error::IO(std::io::Error::from_raw_os_error(38)))
+            fn #name (&mut self, #new_inputs) -> anyhow::Result<i32> {
+                Err(std::io::Error::from_raw_os_error(38).into())
             }
         }]);
         threaded_fns.extend([quote! {
-            fn #name (&self, #new_inputs) -> filesystem_error::Result<i32> {
-                Err(filesystem_error::Error::IO(std::io::Error::from_raw_os_error(38)))
+            fn #name (&self, #new_inputs) -> anyhow::Result<i32> {
+                Err(std::io::Error::from_raw_os_error(38).into())
             }
         }]);
 
@@ -325,25 +325,29 @@ pub fn fuse_operations(attr: TokenStream, item: TokenStream) -> TokenStream {
                     );
 
                     let #out_ident = match #out_ident {
-                        std::result::Result::Ok(o) => o,
-                        std::result::Result::Err(e) => {
-                            match e {
-                                filesystem_error::Error::IO(err) => {
-                                    match err.raw_os_error() {
-                                        std::option::Option::Some(os) => -os,
-                                        std::option::Option::None => {
-                                            eprintln!("Unrecognized error in {}: {:?}", stringify!(#name), err);
-                                            -131
-                                        }
+                        Ok(o) => o,
+                        Err(e) => {
+                            if let Some(err) = e.downcast_ref::<std::io::Error>() {
+                                match err.raw_os_error() {
+                                    Some(os) => -os,
+                                    None => {
+                                        eprintln!(
+                                            "Unrecognized error in {}: {:?}",
+                                            stringify!(#name),
+                                            err
+                                        );
+                                        -131
                                     }
                                 }
-                                filesystem_error::Error::Errno(err) => {
-                                    -(err as i32)
-                                }
-                                _ => {
-                                    eprintln!("Unrecognized error in {}: {:?}", stringify!(#name), e);
-                                    -131
-                                }
+                            } else if let Some(&err) = e.downcast_ref::<nix::errno::Errno>() {
+                                -(err as i32)
+                            } else {
+                                eprintln!(
+                                    "Unrecognized error in {}: {:?}",
+                                    stringify!(#name),
+                                    e
+                                );
+                                -131
                             }
                         }
                     };

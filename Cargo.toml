@@ -8,15 +8,14 @@ edition = "2021"
 [workspace]
 members = [
     "filesystem-macro",
-    "filesystem-error"
 ]
 
 [dependencies]
+anyhow = "1.0.58"
 filesystem-macro = { path = "filesystem-macro", optional = true }
-filesystem-error = { path = "filesystem-error", optional = true }
+nix = "0.24.2"
 
 [dev-dependencies]
-nix = "0.24.2"
 fuse-sys = { path = ".", features = ["auto"] }
 clap = { version = "3.1.6", features = ["derive"] }
 
@@ -25,4 +24,4 @@ bindgen = "*"
 pkg-config = "0.3.25"
 
 [features]
-auto = ["filesystem-macro", "filesystem-error"]
+auto = ["filesystem-macro"]

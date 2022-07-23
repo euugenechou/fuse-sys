@@ -1,5 +1,5 @@
+use anyhow::Result;
 use clap::StructOpt;
-use filesystem_error::prelude::*;
 use fuse_sys::prelude::*;
 use nix::sys::stat as nixstat;
 use std::{

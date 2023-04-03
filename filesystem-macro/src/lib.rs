@@ -13,7 +13,7 @@ use syn::{
 
 const IDENT_CHARS: &str = "_qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM";
 const PRIMITIVE_IDENTS: &[&str] = &[
-    "u8", "u16", "u32", "u64", "u128", "i8", "i16", "i32", "i64", "i128",
+    "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize",
 ];
 
 fn gen_ident(base: &str) -> Ident {
@@ -67,7 +67,7 @@ impl UnsafeFnConvert {
 
         while let Some(arg) = inputs.next() {
             let next = lookahead.next();
-            let sized = matches!(&next, Some(next) if is_ident(&next.ty, "size_t"));
+            let sized = matches!(&next, Some(next) if is_ident(&next.ty, "usize"));
             let size_ident = next.map(|n| n.name.unwrap().0);
 
             let ident = arg.name.unwrap().0;
@@ -361,7 +361,7 @@ pub fn fuse_operations(attr: TokenStream, item: TokenStream) -> TokenStream {
 
                         let #dummy_fs_ident = crate::fuse_fs_new(
                             &#dummy_private_data_ident.ops as *const _,
-                            std::mem::size_of::<crate::fuse_operations>() as crate::size_t,
+                            std::mem::size_of::<crate::fuse_operations>(),
                             &mut #dummy_private_data_ident as *mut _ as *mut std::ffi::c_void,
                         );
 
@@ -455,7 +455,7 @@ pub fn fuse_operations(attr: TokenStream, item: TokenStream) -> TokenStream {
                         args.len() as i32,
                         args.as_mut_ptr() as *mut *mut std::os::raw::c_char,
                         &operations as *const crate::fuse_operations,
-                        std::mem::size_of::<crate::fuse_operations>() as crate::size_t,
+                        std::mem::size_of::<crate::fuse_operations>(),
                         &mut user_data as *mut _ as *mut std::ffi::c_void,
                     )
                 };

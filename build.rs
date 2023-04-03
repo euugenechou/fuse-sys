@@ -38,13 +38,12 @@ fn main() {
         // for versioning issues. In theory these operations
         // shouldn't show up on the struct at all, but whatever
         // I'm not mad or anything like that's totally fine I'm fine.
-        let mut blacklisted = vec!["getdir, utime"];
+        #[cfg(not(target_os = "macos"))]
+        let blacklisted = ["getdir, utime"];
 
-        // macOS makes me question my reality.
+        // macOS requires more operations to be blacklisted.
         #[cfg(target_os = "macos")]
-        {
-            blacklisted.extend(["reserved00, reserved01"]);
-        }
+        let blacklisted = ["getdir", "utime", "reserved00, reserved01"];
 
         bindings_raw.insert_str(
             operations_loc,

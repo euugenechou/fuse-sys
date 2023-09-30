@@ -3,9 +3,9 @@ use std::{env, path::PathBuf};
 fn main() {
     // When building with fuse3, we get an outdated version warning message
     // and (*fuse_get_conext()).private_data gets mangled
-    println!("cargo:rustc-link-lib=fuse");
+    println!("cargo:rustc-link-lib=fuse3");
 
-    let library = pkg_config::probe_library("fuse").expect("pkg-config failed to find fuse");
+    let library = pkg_config::probe_library("fuse3").unwrap();
     let bindings = bindgen::Builder::default()
         .clang_args(
             library

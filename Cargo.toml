@@ -6,21 +6,20 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace]
-members = [
-    "filesystem-macro",
-]
+members = ["filesystem-macro"]
 
 [dependencies]
 anyhow = "1.0.58"
 filesystem-macro = { path = "filesystem-macro", optional = true }
-nix = "0.24.2"
+libc = "0.2.148"
+nix = { version = "0.27.1", features = ["fs"] }
 
 [dev-dependencies]
 fuse-sys = { path = ".", features = ["auto"] }
 clap = { version = "3.1.6", features = ["derive"] }
 
 [build-dependencies]
-bindgen = "*"
+bindgen = "0.68.1"
 pkg-config = "0.3.25"
 
 [features]

@@ -19,12 +19,21 @@ impl Passthrough {
     }
 
     fn source(&self, relative: &str) -> String {
-        format!("{}/{relative}", self.root)
+        format!("{}{relative}", self.root)
     }
 }
 
 impl UnthreadedFileSystem for Passthrough {
-    fn chmod(&mut self, path: &str, mode: mode_t) -> Result<i32> {
+    fn access(&mut self, path: &str, mode: libc::c_int) -> Result<i32> {
+        Ok(unsafe { libc::access(path.as_ptr(), mode) })
+    }
+
+    fn chmod(
+        &mut self,
+        path: &str,
+        mode: mode_t,
+        _info: Option<&mut fuse_file_info>,
+    ) -> Result<i32> {
         set_permissions(self.source(path), Permissions::from_mode(mode.into()))?;
         Ok(0)
     }
@@ -58,7 +67,12 @@ impl UnthreadedFileSystem for Passthrough {
         Ok(0)
     }
 
-    fn getattr(&mut self, path: &str, stat: Option<&mut stat>) -> Result<i32> {
+    fn getattr(
+        &mut self,
+        path: &str,
+        stat: Option<&mut stat>,
+        _info: Option<&mut fuse_file_info>,
+    ) -> Result<i32> {
         let path: &str = &self.source(path);
         *stat.unwrap() = unsafe { std::mem::transmute(nixstat::stat(path)?) };
         Ok(0)
@@ -103,9 +117,10 @@ impl UnthreadedFileSystem for Passthrough {
         &mut self,
         path: &str,
         buf: Option<&mut c_void>,
-        filler: impl Fn(Option<&mut std::ffi::c_void>, &str, &stat, off_t) -> i32,
+        filler: impl Fn(Option<&mut std::ffi::c_void>, &str, &stat, off_t, u32) -> i32,
         _off: off_t,
         _info: Option<&mut fuse_file_info>,
+        _flags: fuse_readdir_flags,
     ) -> Result<i32> {
         let buf = match buf {
             Some(buf) => buf,
@@ -120,7 +135,7 @@ impl UnthreadedFileSystem for Passthrough {
                 ..Default::default()
             };
 
-            if filler(Some(buf), entry.file_name().to_str().unwrap(), &stat, 0) != 0 {
+            if filler(Some(buf), entry.file_name().to_str().unwrap(), &stat, 0, 0) != 0 {
                 break;
             }
         }
@@ -145,7 +160,7 @@ impl UnthreadedFileSystem for Passthrough {
         Ok(0)
     }
 
-    fn rename(&mut self, old: &str, new: &str) -> Result<i32> {
+    fn rename(&mut self, old: &str, new: &str, _flags: fuse_readdir_flags) -> Result<i32> {
         rename(self.source(old), self.source(new))?;
         Ok(0)
     }
@@ -155,7 +170,12 @@ impl UnthreadedFileSystem for Passthrough {
         Ok(0)
     }
 
-    fn truncate(&mut self, path: &str, size: off_t) -> Result<i32> {
+    fn truncate(
+        &mut self,
+        path: &str,
+        size: off_t,
+        _info: Option<&mut fuse_file_info>,
+    ) -> Result<i32> {
         let f = OpenOptions::new().write(true).open(self.source(path))?;
         f.set_len(size as u64)?;
         Ok(0)

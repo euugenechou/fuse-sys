@@ -154,36 +154,35 @@ impl UnsafeFnConvert {
                 // but I can't find a way of extracting the signature of the function pointer from the typedef.
                 //
                 // Here's the signature we are assuming:
-                // pub type fuse_fill_dir_t = Option<unsafe extern "C" fn(buf: *mut c_void, name: *const c_char, stbuf: *const stat, off: off_t) -> c_int>;
-                // (void *buf, const char *name, const struct stat *stbuf, off_t off, enum fuse_fill_dir_flags flags)
-                Type::Path(path) if is_ident(&Type::Path(path.clone()), "fuse_fill_dir_t") => {
-                    conversions.push(syn::parse(quote! {
-                        let #new_ident = {
-                            let #ident = #ident.unwrap();
-                            move |buf: Option<&mut std::ffi::c_void>, name: &str, stat: &stat, off: off_t, flags: u32| {
-                                let mut buf = buf.map(|buf| buf as *mut std::ffi::c_void).unwrap_or(0 as *mut std::ffi::c_void);
-                                let name = std::ffi::CString::new(name).unwrap();
-                                let stat = stat as *const stat;
-                                #ident (buf, name.as_ptr(), stat, off, flags)
-                            }
-                        };
-                    }.into()).unwrap());
+                // pub type fuse_fill_dir_t = Option<unsafe extern "C" fn(buf: *mut c_void, name: *const c_char, stbuf: *const stat, off: off_t, flags: u32) -> c_int>;
+                // Type::Path(path) if is_ident(&Type::Path(path.clone()), "fuse_fill_dir_t") => {
+                //     conversions.push(syn::parse(quote! {
+                //         let #new_ident = {
+                //             let #ident = #ident.unwrap();
+                //             move |buf: Option<&mut std::ffi::c_void>, name: &str, stat: &stat, off: off_t, flags: u32| {
+                //                 let mut buf = buf.map(|buf| buf as *mut std::ffi::c_void).unwrap_or(0 as *mut std::ffi::c_void);
+                //                 let name = std::ffi::CString::new(name).unwrap();
+                //                 let stat = stat as *const stat;
+                //                 #ident (buf, name.as_ptr(), stat, off, flags)
+                //             }
+                //         };
+                //     }.into()).unwrap());
 
-                    syn::parse(
-                        quote!(
-                            impl Fn(
-                                Option<&mut std::ffi::c_void>,
-                                &str,
-                                &stat,
-                                off_t,
-                                u32,
-                            ) -> std::os::raw::c_int
-                        )
-                        .into(),
-                    )
-                    .unwrap()
-                }
+                //     syn::parse(
+                //         quote!(
 
+                //             impl Fn(
+                //                 Option<&mut std::ffi::c_void>,
+                //                 &str,
+                //                 &stat,
+                //                 off_t,
+                //                 u32,
+                //             ) -> std::os::raw::c_int
+                //         )
+                //         .into(),
+                //     )
+                //     .unwrap()
+                // }
                 Type::Path(path) => {
                     if let Some(ident) = path.path.get_ident() {
                         reexport_types.insert(ident.to_string());

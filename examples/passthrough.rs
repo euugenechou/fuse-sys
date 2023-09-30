@@ -117,11 +117,13 @@ impl UnthreadedFileSystem for Passthrough {
         &mut self,
         path: &str,
         buf: Option<&mut c_void>,
-        filler: impl Fn(Option<&mut std::ffi::c_void>, &str, &stat, off_t, u32) -> i32,
+        filler: fuse_fill_dir_t,
         _off: off_t,
         _info: Option<&mut fuse_file_info>,
         _flags: fuse_readdir_flags,
     ) -> Result<i32> {
+        let filler = filler.unwrap();
+
         let buf = match buf {
             Some(buf) => buf,
             None => return Ok(0),
@@ -135,8 +137,17 @@ impl UnthreadedFileSystem for Passthrough {
                 ..Default::default()
             };
 
-            if filler(Some(buf), entry.file_name().to_str().unwrap(), &stat, 0, 0) != 0 {
-                break;
+            unsafe {
+                if filler(
+                    buf,
+                    entry.file_name().to_str().unwrap().as_ptr(),
+                    &stat,
+                    0,
+                    0,
+                ) != 0
+                {
+                    break;
+                }
             }
         }
 
